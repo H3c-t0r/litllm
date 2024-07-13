@@ -10,18 +10,17 @@ import sys, os
 sys.path.insert(
     0, os.path.abspath("../..")
 )  # Adds the parent directory to the system path
-from typing import Optional, Literal, Union
-import litellm, traceback, sys, uuid
-from litellm.caching import DualCache
+from typing import Literal
+import litellm, sys
 from litellm.proxy._types import UserAPIKeyAuth
 from litellm.integrations.custom_logger import CustomLogger
 from fastapi import HTTPException
 from litellm._logging import verbose_proxy_logger
-from litellm.proxy.guardrails.init_guardrails import all_guardrails
+from litellm.proxy.guardrails.init_guardrails import guardrail_name_config_map
 from litellm.proxy.guardrails.guardrail_helpers import should_proceed_based_on_metadata
+from litellm.types.guardrails import default_roles
+from litellm.utils import get_formatted_prompt
 
-from datetime import datetime
-import aiohttp, asyncio
 from litellm._logging import verbose_proxy_logger
 from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
 import httpx
@@ -59,10 +58,9 @@ class _ENTERPRISE_lakeraAI_Moderation(CustomLogger):
             return
 
         if "messages" in data and isinstance(data["messages"], list):
-            text = ""
-            for m in data["messages"]:  # assume messages is a list
-                if "content" in m and isinstance(m["content"], str):
-                    text += m["content"]
+            enabled_roles = guardrail_name_config_map[GUARDRAIL_NAME].get("enabled_roles", default_roles)
+            data["messages"] = [m for m in data["messages"] if m.get("role", "") in enabled_roles]
+            text = get_formatted_prompt(data, call_type)
 
         # https://platform.lakera.ai/account/api-keys
         data = {"input": text}
